@@ -112,6 +112,24 @@ app.get('/protected/profile', verifyToken, (req, res) => {
   });
 });
 
+// ==========================================
+// STAGE 3: LOGOUT ROUTE
+// ==========================================
+
+// POST /auth/logout (Locked behind verifyToken)
+app.post('/auth/logout', verifyToken, async (req, res) => {
+  // Tell Supabase to end the current user's session
+  const { error } = await supabase.auth.signOut();
+
+  if (error) {
+    return res.status(400).json({ error: 'Failed to log out' });
+  }
+
+  return res.status(200).json({ 
+    message: 'Logout successful! Please delete your token on the client side.' 
+  });
+});
+
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT} and connected to Supabase`);
 });
