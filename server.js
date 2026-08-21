@@ -1,13 +1,39 @@
 require('dotenv').config();
 const express = require('express');
 const { createClient } = require('@supabase/supabase-js');
+const swaggerUi = require('swagger-ui-express');
 
+// ==========================================
+// 1. APP INITIALIZATION & SETUP
+// ==========================================
+// We must create 'app' first before we can use it for Swagger or routes!
 const app = express();
 app.use(express.json());
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
-
 const PORT = process.env.PORT || 3000;
+
+// ==========================================
+// 2. SWAGGER DOCUMENTATION
+// ==========================================
+const swaggerDocument = {
+  openapi: '3.0.0',
+  info: {
+    title: 'Authentication API',
+    version: '1.0.0',
+    description: 'Express API with Supabase Authentication',
+  },
+  paths: {
+    '/auth/signup': { post: { summary: 'Register a new user' } },
+    '/auth/login': { post: { summary: 'Log in and receive JWT token' } },
+    '/public/info': { get: { summary: 'Public endpoint accessible to all' } },
+    '/protected/profile': { get: { summary: 'Protected profile route (Requires Token)' } },
+    '/auth/logout': { post: { summary: 'Log out current user' } },
+  },
+};
+
+// Mount Swagger UI at /docs
+app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
 // ==========================================
 // STAGE 1: AUTHENTICATION ROUTES
@@ -17,12 +43,10 @@ const PORT = process.env.PORT || 3000;
 app.post('/auth/signup', async (req, res) => {
   const { email, password } = req.body;
 
-  // Validate input
   if (!email || !password) {
     return res.status(400).json({ error: 'Email and password are required' });
   }
 
-  // Call Supabase SignUp
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
@@ -45,12 +69,10 @@ app.post('/auth/signup', async (req, res) => {
 app.post('/auth/login', async (req, res) => {
   const { email, password } = req.body;
 
-  // Validate input
   if (!email || !password) {
     return res.status(400).json({ error: 'Email and password are required' });
   }
 
-  // Call Supabase SignIn
   const { data, error } = await supabase.auth.signInWithPassword({
     email,
     password,
@@ -66,6 +88,7 @@ app.post('/auth/login', async (req, res) => {
     refresh_token: data.session.refresh_token,
   });
 });
+
 // ==========================================
 // STAGE 2: PUBLIC & PROTECTED ROUTES
 // ==========================================
@@ -78,17 +101,13 @@ const verifyToken = async (req, res, next) => {
     return res.status(401).json({ error: 'Unauthorized: Missing or invalid token' });
   }
 
-  // Extract the token string
   const token = authHeader.split(' ')[1];
-
-  // Ask Supabase to verify the token
   const { data, error } = await supabase.auth.getUser(token);
 
   if (error || !data.user) {
     return res.status(401).json({ error: 'Unauthorized: Invalid token' });
   }
 
-  // Attach the user data to the request so the route can use it
   req.user = data.user;
   next();
 };
@@ -118,7 +137,6 @@ app.get('/protected/profile', verifyToken, (req, res) => {
 
 // POST /auth/logout (Locked behind verifyToken)
 app.post('/auth/logout', verifyToken, async (req, res) => {
-  // Tell Supabase to end the current user's session
   const { error } = await supabase.auth.signOut();
 
   if (error) {
@@ -130,6 +148,9 @@ app.post('/auth/logout', verifyToken, async (req, res) => {
   });
 });
 
+// ==========================================
+// SERVER START
+// ==========================================
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT} and connected to Supabase`);
 });
